@@ -5,12 +5,70 @@
   let slides = [];
   let index = 0;
 
+  const visualSets = {
+    "01": [
+      "https://images.pexels.com/photos/8371391/pexels-photo-8371391.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.pexels.com/photos/5081918/pexels-photo-5081918.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80"
+    ],
+    "02": [
+      "https://images.pexels.com/photos/8371391/pexels-photo-8371391.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?auto=format&fit=crop&w=1600&q=80",
+      "https://images.pexels.com/photos/9317525/pexels-photo-9317525.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1600&q=80"
+    ],
+    "03": [
+      "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1600&q=80",
+      "https://images.pexels.com/photos/9317525/pexels-photo-9317525.jpeg?auto=compress&cs=tinysrgb&w=1600",
+      "https://images.unsplash.com/photo-1535223289827-42f1e9919769?auto=format&fit=crop&w=1600&q=80"
+    ],
+    "04": [
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80",
+      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80"
+    ]
+  };
+
+  const toolLinks = [
+    { label: "Google Trends", href: "https://trends.google.com/trends/" },
+    { label: "YouTube", href: "https://www.youtube.com/feed/trending" },
+    { label: "TikTok", href: "https://www.tiktok.com/" },
+    { label: "抖音", href: "https://www.douyin.com/" },
+    { label: "Reels", href: "https://www.instagram.com/reels/" },
+    { label: "Instagram", href: "https://www.instagram.com/" },
+    { label: "Facebook", href: "https://www.facebook.com/" },
+    { label: "LINE", href: "https://line.me/" },
+    { label: "Canva", href: "https://www.canva.com/" },
+    { label: "CapCut", href: "https://www.capcut.com/" },
+    { label: "剪映", href: "https://www.capcut.cn/" },
+    { label: "ChatGPT", href: "https://chatgpt.com/" },
+    { label: "Claude", href: "https://claude.ai/" },
+    { label: "Gemini", href: "https://gemini.google.com/" },
+    { label: "Runway", href: "https://runwayml.com/" },
+    { label: "Pika", href: "https://pika.art/" },
+    { label: "Veo", href: "https://deepmind.google/technologies/veo/" },
+    { label: "YouTube Create", href: "https://www.youtube.com/create/" },
+    { label: "Instagram Edits", href: "https://creators.instagram.com/edits" }
+  ];
+
   function escapeHtml(text) {
     return text
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;");
+  }
+
+  function linkify(text) {
+    let html = escapeHtml(text);
+    for (const tool of toolLinks) {
+      const safeLabel = tool.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      html = html.replace(new RegExp(safeLabel, "g"), `<a class="inline-link" href="${tool.href}" target="_blank" rel="noopener noreferrer">${tool.label}</a>`);
+    }
+    return html;
   }
 
   function parseMarkdown(markdown) {
@@ -21,15 +79,12 @@
     for (const raw of lines) {
       const line = raw.trim();
       if (!line) continue;
-
       if (line.startsWith("# ")) continue;
-
       if (line.startsWith("## ")) {
         if (current) parsed.push(current);
         current = { title: line.replace(/^##\s*/, ""), body: [] };
         continue;
       }
-
       if (current) current.body.push(line.replace(/\s{2,}$/, ""));
     }
 
@@ -37,45 +92,162 @@
     return parsed;
   }
 
-  function renderBody(lines) {
-    const items = [];
-    const blocks = [];
-
-    for (const line of lines) {
-      const match = line.match(/^(\d+)\.\s+(.+)/);
-      if (match) {
-        items.push(match[2]);
-        continue;
-      }
-
-      if (items.length) {
-        blocks.push(`<ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`);
-        items.length = 0;
-      }
-
-      const className = line.length > 42 ? " class=\"small\"" : "";
-      blocks.push(`<p${className}>${escapeHtml(line)}</p>`);
-    }
-
-    if (items.length) {
-      blocks.push(`<ol>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`);
-    }
-
-    return blocks.join("");
+  function splitLead(lines) {
+    return {
+      lead: lines[0] || "",
+      rest: lines.slice(1)
+    };
   }
 
-  function draw() {
+  function renderParagraphs(lines) {
+    return lines.map((line) => `<p>${linkify(line)}</p>`).join("");
+  }
+
+  function renderCards(lines) {
+    return `<div class="content-cards">${lines.map((line, i) => {
+      const parts = line.split("：");
+      const heading = parts.length > 1 ? parts.shift() : `Point ${i + 1}`;
+      const body = parts.join("：") || line;
+      return `<article><span>${String(i + 1).padStart(2, "0")}</span><strong>${linkify(heading)}</strong><p>${linkify(body)}</p></article>`;
+    }).join("")}</div>`;
+  }
+
+  function renderChecklist(lines) {
+    return `<div class="checklist">${lines.map((line) => `<div><i>✓</i><span>${linkify(line.replace(/^\d+\.\s*/, ""))}</span></div>`).join("")}</div>`;
+  }
+
+  function renderProcess(lines) {
+    return `<div class="process-line">${lines.map((line, i) => `<div><span>${i + 1}</span><p>${linkify(line.replace(/^\d+\.\s*/, ""))}</p></div>`).join("")}</div>`;
+  }
+
+  function renderVisual(slide, i, layout) {
+    const image = visualSets[day][i % visualSets[day].length];
+    const label = layout === "audio" ? "AUDIO FIRST" : layout === "lab" ? "HANDS ON" : `DAY ${day}`;
+    return `
+      <figure class="visual-panel ${layout === "audio" ? "sound-card" : ""}">
+        <img src="${image}" alt="" loading="lazy">
+        <figcaption>${label}</figcaption>
+      </figure>
+    `;
+  }
+
+  function renderUtilityLinks(slide) {
+    const titleAndBody = `${slide.title} ${slide.body.join(" ")}`;
+    const matched = toolLinks.filter((tool) => titleAndBody.includes(tool.label));
+    if (!matched.length) return "";
+    return `<div class="tool-strip">${matched.map((tool) => `<a href="${tool.href}" target="_blank" rel="noopener noreferrer">${tool.label} ↗</a>`).join("")}</div>`;
+  }
+
+  function layoutFor(slide, i) {
+    const title = slide.title;
+    if (i === 0) return "cover";
+    if (title.includes("聲音收音")) return "audio";
+    if (title.includes("實作")) return "lab";
+    if (title.includes("流程") || title.includes("公式") || title.includes("位置")) return "process";
+    if (title.includes("檢查") || title.includes("清單") || title.includes("規格")) return "check";
+    if (title.includes("平台") || title.includes("四種") || title.includes("來源") || title.includes("策略")) return "cards";
+    return i % 4 === 0 ? "photo-right" : i % 4 === 1 ? "cards" : i % 4 === 2 ? "process" : "photo-left";
+  }
+
+  function renderSlide(slide, i) {
+    const layout = layoutFor(slide, i);
+    const title = slide.title.replace(/^\d+\.\s*/, "");
+    const { lead, rest } = splitLead(slide.body);
+    const usefulLines = rest.length ? rest : slide.body;
+    const links = renderUtilityLinks(slide);
+    let content = "";
+
+    if (layout === "cover") {
+      content = `
+        <div class="cover-grid">
+          <div>
+            <div class="deck-kicker">DAY ${day} · SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+            <div class="slide-body compact">${renderParagraphs(rest)}</div>
+            ${links}
+          </div>
+          ${renderVisual(slide, i, layout)}
+        </div>`;
+    } else if (layout === "photo-right" || layout === "photo-left" || layout === "audio") {
+      content = `
+        <div class="split-grid ${layout}">
+          ${layout === "photo-left" ? renderVisual(slide, i, layout) : ""}
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+            <div class="slide-body compact">${renderParagraphs(rest)}</div>
+            ${links}
+          </div>
+          ${layout !== "photo-left" ? renderVisual(slide, i, layout) : ""}
+        </div>`;
+    } else if (layout === "cards") {
+      content = `
+        <div class="stack-layout">
+          <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+          <h2>${linkify(title)}</h2>
+          <div class="slide-lead">${linkify(lead)}</div>
+          ${renderCards(usefulLines)}
+          ${links}
+        </div>`;
+    } else if (layout === "check") {
+      content = `
+        <div class="split-grid">
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+          </div>
+          <div>
+            ${renderChecklist(usefulLines)}
+            ${links}
+          </div>
+        </div>`;
+    } else if (layout === "process") {
+      content = `
+        <div class="stack-layout">
+          <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+          <h2>${linkify(title)}</h2>
+          <div class="slide-lead">${linkify(lead)}</div>
+          ${renderProcess(usefulLines)}
+          ${links}
+        </div>`;
+    } else {
+      content = `
+        <div class="lab-layout">
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+          </div>
+          <div class="lab-board">
+            ${renderChecklist(usefulLines)}
+            ${links}
+          </div>
+        </div>`;
+    }
+
+    return `<section class="slide ${layout}${i === 0 ? " active" : ""}" data-layout="${layout}"><div class="slide-inner">${content}</div></section>`;
+  }
+
+  function draw(direction = 1) {
     const slide = slides[index];
     const all = document.querySelectorAll(".slide");
-    all.forEach((node, i) => node.classList.toggle("active", i === index));
+    all.forEach((node, i) => {
+      node.classList.toggle("active", i === index);
+      node.classList.toggle("leaving-left", i < index && direction > 0);
+      node.classList.toggle("leaving-right", i > index && direction < 0);
+    });
     document.querySelector("[data-count]").textContent = `${String(index + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
     document.querySelector("[data-progress]").style.width = `${((index + 1) / slides.length) * 100}%`;
     document.title = `Day ${day}｜${slide.title.replace(/^\d+\.\s*/, "")}`;
   }
 
   function go(nextIndex) {
+    const old = index;
     index = Math.max(0, Math.min(slides.length - 1, nextIndex));
-    draw();
+    draw(index >= old ? 1 : -1);
   }
 
   try {
@@ -94,17 +266,7 @@
         <a class="home-link" href="index.html">首頁</a>
         <span class="deck-kicker">DAY ${day} · SHORT VIDEO AI WORKSHOP</span>
       </header>
-      ${slides
-        .map((slide, i) => `
-          <section class="slide${i === 0 ? " active" : ""}">
-            <div class="slide-inner">
-              <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
-              <h2>${escapeHtml(slide.title.replace(/^\d+\.\s*/, ""))}</h2>
-              <div class="slide-body">${renderBody(slide.body)}</div>
-            </div>
-          </section>
-        `)
-        .join("")}
+      ${slides.map((slide, i) => renderSlide(slide, i)).join("")}
       <div class="progress"><span data-progress></span></div>
       <div class="slide-count" data-count></div>
       <div class="deck-controls">

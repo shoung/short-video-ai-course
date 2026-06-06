@@ -64,10 +64,19 @@
 
   function linkify(text) {
     let html = escapeHtml(text);
-    for (const tool of toolLinks) {
+    const replacements = [];
+    const sortedTools = [...toolLinks].sort((a, b) => b.label.length - a.label.length);
+    for (const tool of sortedTools) {
       const safeLabel = tool.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      html = html.replace(new RegExp(safeLabel, "g"), `<a class="inline-link" href="${tool.href}" target="_blank" rel="noopener noreferrer">${tool.label}</a>`);
+      html = html.replace(new RegExp(safeLabel, "g"), () => {
+        const token = `__TOOL_LINK_${replacements.length}__`;
+        replacements.push(`<a class="inline-link" href="${tool.href}" target="_blank" rel="noopener noreferrer">${tool.label}</a>`);
+        return token;
+      });
     }
+    replacements.forEach((replacement, i) => {
+      html = html.replace(`__TOOL_LINK_${i}__`, replacement);
+    });
     return html;
   }
 
@@ -120,14 +129,59 @@
     return `<div class="process-line">${lines.map((line, i) => `<div><span>${i + 1}</span><p>${linkify(line.replace(/^\d+\.\s*/, ""))}</p></div>`).join("")}</div>`;
   }
 
+  function imageFor(i, offset = 0) {
+    return visualSets[day][(i + offset) % visualSets[day].length];
+  }
+
   function renderVisual(slide, i, layout) {
-    const image = visualSets[day][i % visualSets[day].length];
+    const image = imageFor(i);
     const label = layout === "audio" ? "AUDIO FIRST" : layout === "lab" ? "HANDS ON" : `DAY ${day}`;
     return `
       <figure class="visual-panel ${layout === "audio" ? "sound-card" : ""}">
         <img src="${image}" alt="" loading="lazy">
         <figcaption>${label}</figcaption>
       </figure>
+    `;
+  }
+
+  function renderBigNumber(lines, i) {
+    const numberMatch = `${slides[i]?.title || ""} ${lines.join(" ")}`.match(/[一二三四五六七八九十]|\d+/);
+    const number = numberMatch ? numberMatch[0] : String(i + 1).padStart(2, "0");
+    return `
+      <div class="big-number-block">
+        <span>${number}</span>
+        <div>${renderParagraphs(lines)}</div>
+      </div>
+    `;
+  }
+
+  function renderQuote(lines) {
+    const quote = lines[0] || "";
+    const rest = lines.slice(1);
+    return `
+      <div class="quote-block">
+        <p>${linkify(quote)}</p>
+        ${rest.length ? `<div class="slide-body compact">${renderParagraphs(rest)}</div>` : ""}
+      </div>
+    `;
+  }
+
+  function renderCollage(i) {
+    return `
+      <div class="photo-collage" aria-hidden="true">
+        <img src="${imageFor(i, 0)}" alt="" loading="lazy">
+        <img src="${imageFor(i, 1)}" alt="" loading="lazy">
+        <img src="${imageFor(i, 2)}" alt="" loading="lazy">
+        <img src="${imageFor(i, 3)}" alt="" loading="lazy">
+      </div>
+    `;
+  }
+
+  function renderIndexList(lines) {
+    return `
+      <div class="mag-index">
+        ${lines.map((line, i) => `<div><span>${String(i + 1).padStart(2, "0")}</span><p>${linkify(line.replace(/^\d+\.\s*/, ""))}</p></div>`).join("")}
+      </div>
     `;
   }
 
@@ -143,10 +197,15 @@
     if (i === 0) return "cover";
     if (title.includes("聲音收音")) return "audio";
     if (title.includes("實作")) return "lab";
+    if (title.includes("Google Trends") || title.includes("排行榜")) return "full-bleed";
+    if (title.includes("收尾") || title.includes("不是學拍好玩") || title.includes("不想露臉")) return "quote";
+    if (title.includes("景別") || title.includes("B-roll") || title.includes("素材") || title.includes("作品優化")) return "collage";
     if (title.includes("流程") || title.includes("公式") || title.includes("位置")) return "process";
     if (title.includes("檢查") || title.includes("清單") || title.includes("規格")) return "check";
+    if (title.includes("三個") || title.includes("四種") || title.includes("五個")) return "big-number";
     if (title.includes("平台") || title.includes("四種") || title.includes("來源") || title.includes("策略")) return "cards";
-    return i % 4 === 0 ? "photo-right" : i % 4 === 1 ? "cards" : i % 4 === 2 ? "process" : "photo-left";
+    if (i % 7 === 0) return "index";
+    return i % 5 === 0 ? "photo-right" : i % 5 === 1 ? "cards" : i % 5 === 2 ? "big-number" : i % 5 === 3 ? "photo-left" : "process";
   }
 
   function renderSlide(slide, i) {
@@ -168,6 +227,59 @@
             ${links}
           </div>
           ${renderVisual(slide, i, layout)}
+        </div>`;
+    } else if (layout === "full-bleed") {
+      content = `
+        <div class="full-bleed-frame" style="--slide-image: url('${imageFor(i)}')">
+          <div class="full-bleed-copy">
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+            <div class="slide-body compact">${renderParagraphs(rest)}</div>
+            ${links}
+          </div>
+        </div>`;
+    } else if (layout === "quote") {
+      content = `
+        <div class="quote-layout">
+          <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+          <h2>${linkify(title)}</h2>
+          ${renderQuote(slide.body)}
+          ${links}
+        </div>`;
+    } else if (layout === "collage") {
+      content = `
+        <div class="collage-layout">
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+            <div class="slide-body compact">${renderParagraphs(rest)}</div>
+            ${links}
+          </div>
+          ${renderCollage(i)}
+        </div>`;
+    } else if (layout === "big-number") {
+      content = `
+        <div class="number-layout">
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+          </div>
+          ${renderBigNumber(usefulLines, i)}
+          ${links}
+        </div>`;
+    } else if (layout === "index") {
+      content = `
+        <div class="index-layout">
+          <div>
+            <div class="deck-kicker">SLIDE ${String(i + 1).padStart(2, "0")}</div>
+            <h2>${linkify(title)}</h2>
+            <div class="slide-lead">${linkify(lead)}</div>
+          </div>
+          ${renderIndexList(usefulLines)}
+          ${links}
         </div>`;
     } else if (layout === "photo-right" || layout === "photo-left" || layout === "audio") {
       content = `
